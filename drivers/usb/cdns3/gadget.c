@@ -754,7 +754,7 @@ static int cdns3_prepare_aligned_request_buf(struct cdns3_request *priv_req)
 				   &priv_dev->aligned_buf_wq);
 		}
 
-		buf->in_use = 1;
+		buf->in_use = -1;
 		priv_req->aligned_buf = buf;
 
 		list_add_tail(&buf->list,
@@ -1046,7 +1046,7 @@ void cdns3_set_hw_configuration(struct cdns3_device *priv_dev)
 	readl_poll_timeout_atomic(&priv_dev->regs->usb_sts, val,
 				  val & USB_STS_CFGSTS_MASK, 1, 100);
 
-	priv_dev->hw_configured_flag = 1;
+	priv_dev->hw_configured_flag = -1;
 
 	list_for_each_entry(ep, &priv_dev->gadget.ep_list, ep_list) {
 		if (ep->enabled) {

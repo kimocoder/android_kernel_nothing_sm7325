@@ -618,7 +618,7 @@ out:
 	return ret;
 }
 
-static char *cnss_driver_event_to_str(enum cnss_driver_event_type type)
+static __maybe_unused char *cnss_driver_event_to_str(enum cnss_driver_event_type type)
 {
 	switch (type) {
 	case CNSS_DRIVER_EVENT_SERVER_ARRIVE:
@@ -2001,7 +2001,8 @@ void cnss_unregister_subsys(struct cnss_plat_data *plat_priv)
 	subsys_unregister(subsys_info->subsys_device);
 }
 
-static void *cnss_create_ramdump_device(struct cnss_plat_data *plat_priv)
+#if IS_ENABLED(CONFIG_QCOM_MEMORY_DUMP_V2)
+static void __maybe_unused *cnss_create_ramdump_device(struct cnss_plat_data *plat_priv)
 {
 	struct cnss_subsys_info *subsys_info = &plat_priv->subsys_info;
 
@@ -2009,11 +2010,12 @@ static void *cnss_create_ramdump_device(struct cnss_plat_data *plat_priv)
 				     subsys_info->subsys_desc.dev);
 }
 
-static void cnss_destroy_ramdump_device(struct cnss_plat_data *plat_priv,
+static void __maybe_unused cnss_destroy_ramdump_device(struct cnss_plat_data *plat_priv,
 					void *ramdump_dev)
 {
 	destroy_ramdump_device(ramdump_dev);
 }
+#endif
 
 int cnss_do_ramdump(struct cnss_plat_data *plat_priv)
 {
