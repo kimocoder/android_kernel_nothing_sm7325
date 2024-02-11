@@ -90,8 +90,8 @@ if [ -f "$kernel" ] && [ -d "$dts_dir" ]; then
 	cat $dts_dir/*.dtb > AnyKernel3/dtb
 	python2 scripts/mkdtboimg.py create AnyKernel3/dtbo.img --page_size=4096 $dts_dir/*.dtbo
 	mkdir AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
-	cp $(find out/net/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
-	cp $(find out/drivers/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
+	#cp $(find out/net/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
+	#cp $(find out/drivers/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
 	cp out/modules/lib/modules/5.4*/modules.{alias,dep,softdep} AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
 	cp out/modules/lib/modules/5.4*/modules.order AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/modules.load
 	cp out/modules/lib/modules/5.4.*/modules.* AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
