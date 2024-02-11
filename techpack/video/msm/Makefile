@@ -1,4 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
+
+EXTRA_CFLAGS += -Wno-fortify-source
+
 ccflags-y += -I$(srctree)/techpack/video/msm/vidc/ \
     -I$(srctree)/drivers/devfreq/
 
