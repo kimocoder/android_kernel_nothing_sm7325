@@ -475,7 +475,9 @@ static int free_dma_mem(struct msm_smem *mem, u32 sid)
 	if (mem->kvaddr) {
 		dma_buf_vunmap(dbuf, mem->kvaddr);
 		mem->kvaddr = NULL;
-		dma_buf_end_cpu_access(dbuf, DMA_BIDIRECTIONAL);
+		if (dbuf) {
+			dma_buf_end_cpu_access(dbuf, DMA_BIDIRECTIONAL);
+		}
 	}
 
 	if (dbuf) {
