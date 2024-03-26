@@ -44,7 +44,7 @@ if test -z "$(git rev-parse --show-cdup 2>/dev/null)" &&
    head=$(git rev-parse --verify HEAD 2>/dev/null); then
         ZIPNAME="${ZIPNAME::-4}-$(echo $head | cut -c1-8).zip"
 fi
-CLANG_DIR="$TC_DIR/linux-x86/clang-r510928"
+CLANG_DIR="$TC_DIR/linux-x86/clang-r522817"
 AK3_DIR="$HOME/AnyKernel3"
 DEFCONFIG="spacewar_defconfig"
 
@@ -88,7 +88,7 @@ if [ -f "$kernel" ] && [ -d "$dts_dir" ]; then
 	fi
 	cp $kernel AnyKernel3
 	cat $dts_dir/*.dtb > AnyKernel3/dtb
-	python2 scripts/mkdtboimg.py create AnyKernel3/dtbo.img --page_size=4096 $dts_dir/*.dtbo
+	python3 scripts/mkdtboimg.py create AnyKernel3/dtbo.img --page_size=4096 $dts_dir/*.dtbo
 	mkdir AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
 	cp $(find out/net/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
 	cp $(find out/drivers/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.259-NetHunter/
