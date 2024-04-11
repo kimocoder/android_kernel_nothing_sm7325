@@ -1,7 +1,8 @@
 #!/bin/bash
 #
-# Compile script for QuicksilveR kernel
-# Copyright (C) 2020-2021 Adithya R.
+# kimocoder kernel builder and packer
+# 2024 - kimocoder
+#
 
 # Setup getopt.
 long_opts="regen,clean,homedir:,tcdir:"
