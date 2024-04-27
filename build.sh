@@ -91,13 +91,13 @@ if [ -f "$kernel" ] && [ -d "$dts_dir" ]; then
 	cat $dts_dir/*.dtb > AnyKernel3/dtb
 	python3 scripts/mkdtboimg.py create AnyKernel3/dtbo.img --page_size=4096 $dts_dir/*.dtbo
 	mkdir AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/
-	cp $(find out/net/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/
+	#cp $(find out/net/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/
 	cp $(find out/drivers/* -name '*.ko') AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/
 	cp out/modules/lib/modules/5.4*/modules.{alias,dep,softdep} AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/
 	cp out/modules/lib/modules/5.4*/modules.order AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/modules.load
 	cp out/modules/lib/modules/5.4.*/modules.* AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/
 	sed -i 's/\(kernel\/[^: ]*\/\)\([^: ]*\.ko\)/\/vendor\/lib\/modules\/\2/g' AnyKernel3/modules/vendor/lib/modules/5.4.274-NetHunter/modules.dep
-	#sed -i 's/.*\///g' AnyKernel3/modules/vendor/lib/modules/5.4.*/modules.load
+	sed -i 's/.*\///g' AnyKernel3/modules/vendor/lib/modules/5.4.*/modules.load
 	rm -rf out/arch/arm64/boot out/modules
 	cd AnyKernel3
 	zip -r9 "../$ZIPNAME" * -x .git README.md *placeholder
