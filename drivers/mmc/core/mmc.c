@@ -2261,6 +2261,7 @@ static int mmc_cache_card_ext_csd(struct mmc_host *host)
 	return 0;
 }
 
+#if defined(CONFIG_SDC_QTI)
 static int mmc_test_awake_ext_csd(struct mmc_host *host)
 {
 	int err;
@@ -2275,7 +2276,6 @@ static int mmc_test_awake_ext_csd(struct mmc_host *host)
 	}
 
 	/* only compare read/write fields that the sw changes */
-#if defined(CONFIG_SDC_QTI)
 	pr_debug("%s: %s: type(cached:current) cmdq(%d:%d) cache_ctrl(%d:%d) bus_width (%d:%d) timing(%d:%d)\n",
 		mmc_hostname(host), __func__,
 		card->ext_csd.raw_ext_csd_cmdq,
@@ -2294,12 +2294,12 @@ static int mmc_test_awake_ext_csd(struct mmc_host *host)
 			ext_csd[EXT_CSD_BUS_WIDTH]) &&
 		(card->ext_csd.raw_ext_csd_hs_timing ==
 			ext_csd[EXT_CSD_HS_TIMING]));
-#endif
 
 	kfree(ext_csd);
 
 	return err;
 }
+#endif
 
 static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 {
@@ -2332,8 +2332,8 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 	if (mmc_can_sleep(host->card)) {
 #if defined(CONFIG_SDC_QTI)
 		memcpy(&host->cached_ios, &host->ios, sizeof(host->cached_ios));
-#endif
 		if (!host->partial_init_broken)
+#endif
 			mmc_cache_card_ext_csd(host);
 	}
 	if (mmc_can_sleep(host->card))
@@ -2356,24 +2356,21 @@ out:
 	return err;
 }
 
+#if defined(CONFIG_SDC_QTI)
 static int mmc_partial_init(struct mmc_host *host)
 {
 	int err = 0;
 	struct mmc_card *card = host->card;
 
-#if defined(CONFIG_SDC_QTI)
 	mmc_set_bus_width(host, host->cached_ios.bus_width);
 	mmc_set_timing(host, host->cached_ios.timing);
 	if (host->cached_ios.enhanced_strobe) {
-#endif
 		host->ios.enhanced_strobe = true;
 		if (host->ops->hs400_enhanced_strobe)
 			host->ops->hs400_enhanced_strobe(host, &host->ios);
-#if defined(CONFIG_SDC_QTI)
 	}
 	mmc_set_clock(host, host->cached_ios.clock);
 	mmc_set_bus_mode(host, host->cached_ios.bus_mode);
-#endif
 
 	if (!mmc_card_hs400es(card) &&
 			(mmc_card_hs200(card) || mmc_card_hs400(card))) {
@@ -2401,6 +2398,7 @@ static int mmc_partial_init(struct mmc_host *host)
 out:
 	return err;
 }
+#endif
 
 /*
  * Suspend callback
@@ -2445,6 +2443,8 @@ static int _mmc_resume(struct mmc_host *host)
 
 	if (mmc_can_sleep(host->card)) {
 		err = mmc_sleepawake(host, false);
+
+#if defined(CONFIG_SDC_QTI)
 		if (!err) {
 			if (host->partial_init_broken)
 				err = mmc_init_card(host, host->card->ocr, host->card);
@@ -2454,9 +2454,12 @@ static int _mmc_resume(struct mmc_host *host)
 		else
 			pr_err("%s: %s: awake failed (%d), fallback to full init\n",
 				mmc_hostname(host), __func__, err);
+#endif
 	}
 
+#if defined(CONFIG_SDC_QTI)
 	if (err)
+#endif
 		err = mmc_init_card(host, host->card->ocr, host->card);
 
 	mmc_card_clr_suspended(host->card);

@@ -1870,9 +1870,11 @@ static bool sdhci_msm_populate_pdata(struct device *dev,
 	if (sdhci_msm_dt_parse_hsr_info(dev, msm_host))
 		goto out;
 
+#if defined(CONFIG_SDC_QTI)
 	msm_host->mmc->partial_init_broken =
 		of_property_read_bool(dev->of_node,
 			"qcom,partial_init_broken");
+#endif
 
 	if (!sdhci_msm_dt_get_array(dev, "qcom,ice-clk-rates",
 			&ice_clk_table, &ice_clk_table_len, 0)) {
