@@ -45,7 +45,7 @@ if test -z "$(git rev-parse --show-cdup 2>/dev/null)" &&
    head=$(git rev-parse --verify HEAD 2>/dev/null); then
         ZIPNAME="${ZIPNAME::-4}-$(echo $head | cut -c1-8).zip"
 fi
-CLANG_DIR="$TC_DIR/linux-x86/clang-r522817"
+CLANG_DIR="$TC_DIR/linux-x86/clang-r530567"
 AK3_DIR="$HOME/AnyKernel3"
 DEFCONFIG="spacewar_defconfig"
 
