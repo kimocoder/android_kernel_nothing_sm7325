@@ -2041,6 +2041,9 @@ typedef enum {
     /** WMI event for Firmware Consumed/Dropped Rx management frames indication */
     WMI_MGMT_RX_FW_CONSUMED_EVENTID,
 
+    /** WMI event for indication to Host to reap the MGMT SRNG */
+    WMI_MGMT_SRNG_REAP_EVENTID,
+
 
     /* ADDBA Related WMI Events*/
     /** Indication the completion of the prior
@@ -2522,6 +2525,8 @@ typedef enum {
     WMI_MLO_LINK_STATE_SWITCH_EVENTID,
     /** WMI Event to sync link info to host */
     WMI_MLO_LINK_INFO_SYNC_EVENTID,
+    /** WMI Event to announce host about the TLT update for TID */
+    WMI_MLO_TLT_SELECTION_FOR_TID_SPRAY_EVENTID,
 
     /* WMI event specific to Quiet handling */
     WMI_QUIET_HANDLING_EVENTID = WMI_EVT_GRP_START_ID(WMI_GRP_QUIET_OFL),
@@ -4631,8 +4636,17 @@ typedef struct {
      *      0 -> disable the feature
      *      1 -> enable the feature
      *      Refer to the below WMI_RSRC_CFG_FLAGS2_EPM_GET/SET macros.
+     *  Bit 21 - enable new MGMT SRNG for beacons and probe responses.
+     *      0 -> disable the feature
+     *      1 -> enable the feature
+     *      Refer to the below WMI_RSRC_CFG_FLAGS2_IS_MGMT_SRNG_ENABLED_GET/SET
+     *      macros.
+     *  Bit 22 - enable 4address WDS support
+     *      0 -> disable the feature
+     *      1 -> enable the feature
+     *     Refer to below WMI_RSRC_CFG_FLAGS2_ENABLE_WDS_NULL_FRAME_SUPPORT
      *
-     *  Bits 31:21 - Reserved
+     *  Bits 31:23 - Reserved
      */
     A_UINT32 flags2;
     /** @brief host_service_flags - can be used by Host to indicate
@@ -4750,7 +4764,13 @@ typedef struct {
      *      Refer to the below definitions of the
      *      WMI_RSRC_CFG_HOST_SERVICE_FLAG_ML_FULL_MONITOR_MODE_SUPPORT_GET
      *      and _SET macros
-     *  Bits 31:17 - Reserved
+     *  Bit 17
+     *      This bit will set by host to inform FW that rx buffer refilling
+     *      is supported by the host in Qdata feature (tx LCE consent pkt),
+     *      So FW will start refilling the buffers.
+     *      Refer to the below definitions of WMI_RSRC_CFG_HOST_SERVICE_FLAG
+     *      OPT_DP_CTRL_REPLENISH_REFILL_RX_BUFFER_SUPPORT_GET and _SET macros.
+     *  Bits 31:18 - Reserved
      */
     A_UINT32 host_service_flags;
 
@@ -5132,6 +5152,17 @@ typedef struct {
 #define WMI_RSRC_CFG_FLAGS2_EPM_SET(flags2, value) \
     WMI_SET_BITS(flags2, 20, 1, value)
 
+#define WMI_RSRC_CFG_FLAGS2_IS_MGMT_SRNG_ENABLED_GET(flags2) \
+    WMI_GET_BITS(flags2, 21, 1)
+#define WMI_RSRC_CFG_FLAGS2_IS_MGMT_SRNG_ENABLED_SET(flags2, value) \
+    WMI_SET_BITS(flags2, 21, 1, value)
+
+#define WMI_RSRC_CFG_FLAGS2_ENABLE_WDS_NULL_FRAME_SUPPORT_GET(flags2) \
+    WMI_GET_BITS(flags2, 22, 1)
+#define WMI_RSRC_CFG_FLAGS2_ENABLE_WDS_NULL_FRAME_SUPPORT_SET(flags2, value) \
+    WMI_SET_BITS(flags2, 22, 1, value)
+
+
 #define WMI_RSRC_CFG_HOST_SERVICE_FLAG_NAN_IFACE_SUPPORT_GET(host_service_flags) \
     WMI_GET_BITS(host_service_flags, 0, 1)
 #define WMI_RSRC_CFG_HOST_SERVICE_FLAG_NAN_IFACE_SUPPORT_SET(host_service_flags, val) \
@@ -5226,6 +5257,11 @@ typedef struct {
 #define WMI_RSRC_CFG_HOST_SERVICE_FLAG_ML_FULL_MONITOR_MODE_SUPPORT_SET(host_service_flags, val) \
         WMI_SET_BITS(host_service_flags, 16, 1, val)
 
+/* This bit is used to inform FW to provide refill buffers in Qdata feature */
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_OPT_DP_CTRL_REPLENISH_REFILL_RX_BUFFER_SUPPORT_GET(host_service_flags) \
+        WMI_GET_BITS(host_service_flags, 17, 1)
+#define WMI_RSRC_CFG_HOST_SERVICE_FLAG_OPT_DP_CTRL_REPLENISH_REFILL_RX_BUFFER_SUPPORT_SET(host_service_flags, val) \
+        WMI_SET_BITS(host_service_flags, 17, 1, val)
 
 #define WMI_RSRC_CFG_CARRIER_CFG_CHARTER_ENABLE_GET(carrier_config) \
     WMI_GET_BITS(carrier_config, 0, 1)
@@ -9657,6 +9693,7 @@ typedef enum {
     /** configure datastall consecutive no ack threshold */
     WMI_PDEV_PARAM_DSTALL_CONSECUTIVE_TX_NO_ACK_THRESHOLD,
 
+    WMI_PDEV_PARAM_MGMT_SRNG_REAP_EVENT_THRESHOLD,
 } WMI_PDEV_PARAM;
 
 #define WMI_PDEV_ONLY_BSR_TRIG_IS_ENABLED(trig_type) WMI_GET_BITS(trig_type, 0, 1)
@@ -36925,6 +36962,8 @@ typedef struct {
      * For example, a value of 5 causes a power reduction of 1.25 dB.
      */
     A_UINT32 pout_reduction_25db;
+    /* tx chain mask: Chain mask to apply based on the temp level */
+    A_UINT32 tx_chain_mask;
 } wmi_therm_throt_level_config_info;
 
 typedef enum {
@@ -41020,6 +41059,7 @@ typedef struct {
 
 typedef enum {
     WMI_ROAM_MSG_RSSI_RECOVERED = 1, /* Connected AP RSSI is recovered to good region */
+    WMI_ROAM_MSG_CONNECTED_IN_POOR_RSSI = 2, /* DUT connected to AP whose RSSI is below low RSSI threshold */
 } WMI_ROAM_MSG_ID;
 
 typedef struct {
@@ -46524,6 +46564,39 @@ typedef struct {
     A_UINT32 disabled_link_bitmap;
 } wmi_mlo_ap_vdev_tid_to_link_map_ie_info;
 
+#define WMI_NUM_TID_PER_AC 2
+typedef struct {
+    /** TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_mlo_link_removal_evt_fixed_param */
+    A_UINT32 tlv_header;
+    wmi_mac_addr mld_mac;
+    /* hwlink_priority:
+     * Based on capacity, hw chip is ordered here.
+     * hwlink_priority[0] holds the HW chip ID which is the top priority,
+     * hwlink_priority[1] holds the HW chip ID which is the 2nd priority,
+     * etc.
+     */
+    A_UINT32 hwlink_priority[WMI_MAX_NUM_MLO_LINKS];
+    /* link_bmap:
+     * Bitmap segments for the primary TIDs (0/1/4/6)
+     * are provided in link_bmap[0].
+     * Bitmap segments for the secondary TIDs (3/2/5/7)
+     * are provided in link_bmap[1].
+     * link_bmap[0]:
+     *     bits  4:0  are used to indicate which links are used for TID 0
+     *     bits  9:5  are used to indicate which links are used for TID 1
+     *     bits 14:10 are used to indicate which links are used for TID 4
+     *     bits 19:15 are used to indicate which links are used for TID 6
+     *     bits 31:20 are unused
+     * link_bmap[0]:
+     *     bits  4:0  are used to indicate which links are used for TID 3
+     *     bits  9:5  are used to indicate which links are used for TID 2
+     *     bits 14:10 are used to indicate which links are used for TID 5
+     *     bits 19:15 are used to indicate which links are used for TID 7
+     *     bits 31:20 are unused
+     */
+    A_UINT32 link_bmap[WMI_NUM_TID_PER_AC];
+} wmi_mlo_tlt_selection_for_tid_spray_event_fixed_param;
+
 #define WMI_IGMP_OFFLOAD_SUPPORT_DISABLE_BITMASK    0x0
 #define WMI_IGMP_V1_OFFLOAD_SUPPORT_BITMASK         0x1
 #define WMI_IGMP_V2_OFFLOAD_SUPPORT_BITMASK         0x2
@@ -48613,6 +48686,20 @@ typedef struct {
     wmi_mac_addr mld_mac_address; /* MLD MAC address */
     A_UINT32 is_ap_suspend; /* 1 = suspend, 0 = resume */
 } wmi_set_ap_suspend_resume_fixed_param;
+
+typedef struct {
+    /** TLV tag and len; tag equals
+     * WMITLV_TAG_STRUC_wmi_mgmt_srng_reap_event_fixed_param */
+    A_UINT32 tlv_header;
+    /** timestamp_tp_update_ms:
+     * This indicates the last time the tail pointer was updated by FW
+     * after filling MGMT SRNG entry.
+     * The timestamp is from the FW CPU's internal clock, in milliseconds units.
+     */
+    A_UINT32 timestamp_tp_update_ms;
+    /** This indicates the position of the tail pointer as last updated by FW */
+    A_UINT32 tail_pointer;
+} wmi_mgmt_srng_reap_event_fixed_param;
 
 
 
