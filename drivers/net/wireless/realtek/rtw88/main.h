@@ -958,7 +958,6 @@ struct rtw_chip_ops {
 	int (*power_on)(struct rtw_dev *rtwdev);
 	void (*power_off)(struct rtw_dev *rtwdev);
 	int (*mac_init)(struct rtw_dev *rtwdev);
-	int (*llt_init_legacy)(struct rtw_dev *rtwdev, u32 boundary);
 	int (*dump_fw_crash)(struct rtw_dev *rtwdev);
 	void (*shutdown)(struct rtw_dev *rtwdev);
 	int (*read_efuse)(struct rtw_dev *rtwdev, u8 *map);
@@ -1006,6 +1005,7 @@ struct rtw_chip_ops {
 	void (*fill_txdesc_checksum)(struct rtw_dev *rtwdev,
 				     struct rtw_tx_pkt_info *pkt_info,
 				     u8 *txdesc);
+	void (*rx_aggregation)(struct rtw_dev *rtwdev, bool enable);
 
 	/* for coex */
 	void (*coex_set_init)(struct rtw_dev *rtwdev);
@@ -1214,16 +1214,19 @@ struct rtw_rfe_def {
 	const struct rtw_table *phy_pg_tbl;
 	const struct rtw_table *txpwr_lmt_tbl;
 	const struct rtw_table *agc_btg_tbl;
+	const struct rtw_pwr_track_tbl *pwr_track_tbl;
 };
 
-#define RTW_DEF_RFE(chip, bb_pg, pwrlmt) {				  \
+#define RTW_DEF_RFE(chip, bb_pg, pwrlmt, track) {				  \
 	.phy_pg_tbl = &rtw ## chip ## _bb_pg_type ## bb_pg ## _tbl,	  \
 	.txpwr_lmt_tbl = &rtw ## chip ## _txpwr_lmt_type ## pwrlmt ## _tbl, \
+	.pwr_track_tbl = &rtw ## chip ## _pwr_track_type ## track ## _tbl, \
 	}
 
-#define RTW_DEF_RFE_EXT(chip, bb_pg, pwrlmt, btg) {			  \
+#define RTW_DEF_RFE_EXT(chip, bb_pg, pwrlmt, track, btg) {			  \
 	.phy_pg_tbl = &rtw ## chip ## _bb_pg_type ## bb_pg ## _tbl,	  \
 	.txpwr_lmt_tbl = &rtw ## chip ## _txpwr_lmt_type ## pwrlmt ## _tbl, \
+	.pwr_track_tbl = &rtw ## chip ## _pwr_track_type ## track ## _tbl, \
 	.agc_btg_tbl = &rtw ## chip ## _agc_btg_type ## btg ## _tbl, \
 	}
 
@@ -1301,7 +1304,7 @@ struct rtw_chip_info {
 	u32 fw_rxff_size;
 	u16 rsvd_drv_pg_num;
 	u8 band;
-	u8 page_size;
+	u16 page_size;
 	u8 csi_buf_pg_num;
 	u8 dig_max;
 	u8 dig_min;
@@ -1311,13 +1314,14 @@ struct rtw_chip_info {
 	bool tx_stbc;
 	u8 max_power_index;
 	u8 ampdu_density;
-	bool has_hw_feature_report;
 
 	u16 fw_fifo_addr[RTW_FW_FIFO_MAX];
 	const struct rtw_fwcd_segs *fwcd_segs;
+
+	u8 usb_tx_agg_desc_num;
+	bool hw_feature_report;
 	u8 c2h_ra_report_size;
 	bool old_datarate_fb_limit;
-	u8 usb_tx_agg_desc_num;
 
 	u8 default_1ss_tx_path;
 
@@ -1356,7 +1360,6 @@ struct rtw_chip_info {
 	u16 dpd_ratemask;
 	u8 iqk_threshold;
 	u8 lck_threshold;
-	const struct rtw_pwr_track_tbl *pwr_track_tbl;
 
 	u8 bfer_su_max_num;
 	u8 bfer_mu_max_num;
@@ -1605,6 +1608,7 @@ struct rtw_coex_stat {
 	u8 bt_hid_slot;
 	u8 bt_a2dp_bitpool;
 	u8 bt_iqk_state;
+	u8 bt_disable_cnt;
 
 	u16 wl_beacon_interval;
 	u8 wl_noisy_level;
@@ -1828,7 +1832,7 @@ struct rtw_dm_info {
 	bool pwr_trk_init_trigger;
 	struct ewma_thermal avg_thermal[RTW_RF_PATH_MAX];
 	s8 txagc_remnant_cck;
-	s8 txagc_remnant_ofdm;
+	s8 txagc_remnant_ofdm[RTW_RF_PATH_MAX];
 	u8 rx_cck_agc_report_type;
 
 	/* backup dack results for each path and I/Q */

@@ -497,11 +497,6 @@ static const struct rtw_pwr_seq_cmd *card_disable_flow_8703b[] = {
 	NULL
 };
 
-static const struct rtw_rfe_def rtw8703b_rfe_defs[] = {
-	[0] = { .phy_pg_tbl	= &rtw8703b_bb_pg_tbl,
-		.txpwr_lmt_tbl	= &rtw8703b_txpwr_lmt_tbl,},
-};
-
 static const struct rtw_page_table page_table_8703b[] = {
 	{12, 2, 2, 0, 1},
 	{12, 2, 2, 0, 1},
@@ -573,7 +568,6 @@ static int rtw8703b_read_efuse(struct rtw_dev *rtwdev, u8 *log_map)
 	u8 *pwr = (u8 *)efuse->txpwr_idx_table;
 	bool valid = false;
 	int ret;
-	int i;
 
 	ret = rtw8723x_read_efuse(rtwdev, log_map);
 	if (ret != 0)
@@ -585,13 +579,13 @@ static int rtw8703b_read_efuse(struct rtw_dev *rtwdev, u8 *log_map)
 	/* If TX power index table in EFUSE is invalid, fall back to
 	 * built-in table.
 	 */
-	for (i = 0; i < ARRAY_SIZE(rtw8703b_txpwr_idx_table); i++)
+	for (int i = 0; i < ARRAY_SIZE(rtw8703b_txpwr_idx_table); i++)
 		if (pwr[i] != 0xff) {
 			valid = true;
 			break;
 		}
 	if (!valid) {
-		for (i = 0; i < ARRAY_SIZE(rtw8703b_txpwr_idx_table); i++)
+		for (int i = 0; i < ARRAY_SIZE(rtw8703b_txpwr_idx_table); i++)
 			pwr[i] = rtw8703b_txpwr_idx_table[i];
 		rtw_dbg(rtwdev, RTW_DBG_EFUSE,
 			"Replaced invalid EFUSE TX power index table.");
@@ -652,7 +646,7 @@ static void rtw8703b_pwrtrack_init(struct rtw_dev *rtwdev)
 	dm_info->pwr_trk_init_trigger = true;
 	dm_info->thermal_meter_k = rtwdev->efuse.thermal_meter_k;
 	dm_info->txagc_remnant_cck = 0;
-	dm_info->txagc_remnant_ofdm = 0;
+	dm_info->txagc_remnant_ofdm[RF_PATH_A] = 0;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
@@ -1105,10 +1099,8 @@ static
 void rtw8703b_iqk_config_mac(struct rtw_dev *rtwdev,
 			     const struct rtw8723x_iqk_backup_regs *backup)
 {
-	int i;
-
 	rtw_write8(rtwdev, rtw8723x_common.iqk_mac8_regs[0], 0x3F);
-	for (i = 1; i < RTW8723X_IQK_MAC8_REG_NUM; i++)
+	for (int i = 1; i < RTW8723X_IQK_MAC8_REG_NUM; i++)
 		rtw_write8(rtwdev, rtw8723x_common.iqk_mac8_regs[i],
 			   backup->mac8[i] & (~BIT(3)));
 }
@@ -1661,7 +1653,7 @@ static void rtw8703b_pwrtrack_set_ofdm_pwr(struct rtw_dev *rtwdev, s8 swing_idx,
 {
 	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
 
-	dm_info->txagc_remnant_ofdm = txagc_idx;
+	dm_info->txagc_remnant_ofdm[RF_PATH_A] = txagc_idx;
 
 	/* Only path A is calibrated for rtl8703b */
 	rtw8703b_set_iqk_matrix(rtwdev, swing_idx, RF_PATH_A);
@@ -1671,7 +1663,6 @@ static void rtw8703b_pwrtrack_set_cck_pwr(struct rtw_dev *rtwdev, s8 swing_idx,
 					  s8 txagc_idx)
 {
 	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
-	int i;
 
 	dm_info->txagc_remnant_cck = txagc_idx;
 
@@ -1680,7 +1671,7 @@ static void rtw8703b_pwrtrack_set_cck_pwr(struct rtw_dev *rtwdev, s8 swing_idx,
 	BUILD_BUG_ON(ARRAY_SIZE(rtw8703b_cck_pwr_regs)
 		     != ARRAY_SIZE(rtw8703b_cck_swing_table[0]));
 
-	for (i = 0; i < ARRAY_SIZE(rtw8703b_cck_pwr_regs); i++)
+	for (int i = 0; i < ARRAY_SIZE(rtw8703b_cck_pwr_regs); i++)
 		rtw_write8(rtwdev, rtw8703b_cck_pwr_regs[i],
 			   rtw8703b_cck_swing_table[swing_idx][i]);
 }
@@ -1891,6 +1882,12 @@ static const struct rtw_pwr_track_tbl rtw8703b_rtw_pwr_track_tbl = {
 	.pwrtrk_xtal_p = rtw8703b_pwrtrk_xtal_p,
 };
 
+static const struct rtw_rfe_def rtw8703b_rfe_defs[] = {
+	[0] = { .phy_pg_tbl	= &rtw8703b_bb_pg_tbl,
+		.txpwr_lmt_tbl	= &rtw8703b_txpwr_lmt_tbl,
+		.pwr_track_tbl	= &rtw8703b_rtw_pwr_track_tbl, },
+};
+
 /* Shared-Antenna Coex Table */
 static const struct coex_table_para table_sant_8703b[] = {
 	{0xffffffff, 0xffffffff}, /* case-0 */
@@ -1964,7 +1961,6 @@ static struct rtw_chip_ops rtw8703b_ops = {
 	.power_on		= rtw_power_on,
 	.power_off		= rtw_power_off,
 	.mac_init		= rtw8723x_mac_init,
-	.llt_init_legacy	= rtw_llt_init_legacy,
 	.dump_fw_crash		= NULL,
 	.shutdown		= NULL,
 	.read_efuse		= rtw8703b_read_efuse,
@@ -2035,8 +2031,10 @@ const struct rtw_chip_info rtw8703b_hw_spec = {
 	.tx_stbc = false,
 	.max_power_index = 0x3f,
 	.ampdu_density = IEEE80211_HT_MPDU_DENSITY_16,
-	.has_hw_feature_report = true,
-	.usb_tx_agg_desc_num = 1,
+	.usb_tx_agg_desc_num = 1, /* Not sure if this chip has USB interface */
+	.hw_feature_report = true,
+	.c2h_ra_report_size = 7,
+	.old_datarate_fb_limit = true,
 
 	.path_div_supported = false,
 	.ht_supported = true,
@@ -2069,7 +2067,6 @@ const struct rtw_chip_info rtw8703b_hw_spec = {
 	.rfe_defs_size = ARRAY_SIZE(rtw8703b_rfe_defs),
 
 	.iqk_threshold = 8,
-	.pwr_track_tbl = &rtw8703b_rtw_pwr_track_tbl,
 
 	/* WOWLAN firmware exists, but not implemented yet */
 	.wow_fw_name = "rtw88/rtw8703b_wow_fw.bin",

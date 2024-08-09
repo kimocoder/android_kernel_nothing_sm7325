@@ -46,6 +46,7 @@ static int rtw8822b_read_efuse(struct rtw_dev *rtwdev, u8 *log_map)
 
 	map = (struct rtw8822b_efuse *)log_map;
 
+	efuse->usb_mode_switch = u8_get_bits(map->usb_mode, BIT(7));
 	efuse->rfe_option = map->rfe_option;
 	efuse->rf_board_option = map->rf_board_option;
 	efuse->crystal_cap = map->xtal_k;
@@ -236,6 +237,25 @@ static void rtw8822b_phy_set_param(struct rtw_dev *rtwdev)
 #define WLAN_NAV_CFG		(WLAN_RDG_NAV | (WLAN_TXOP_NAV << 16))
 #define WLAN_RX_TSF_CFG		(WLAN_CCK_RX_TSF | (WLAN_OFDM_RX_TSF) << 8)
 
+static void rtw8822bu_init_burst_pkt_len(struct rtw_dev *rtwdev)
+{
+	u8 rxdma, burst_size;
+
+	rxdma = BIT_DMA_BURST_CNT | BIT_DMA_MODE;
+
+	if (rtw_read8(rtwdev, REG_SYS_CFG2 + 3) == 0x20)
+		burst_size = BIT_DMA_BURST_SIZE_1024;
+	else if ((rtw_read8(rtwdev, REG_USB_USBSTAT) & 0x3) == 0x1)
+		burst_size = BIT_DMA_BURST_SIZE_512;
+	else
+		burst_size = BIT_DMA_BURST_SIZE_64;
+
+	u8p_replace_bits(&rxdma, burst_size, BIT_DMA_BURST_SIZE);
+
+	rtw_write8(rtwdev, REG_RXDMA_MODE, rxdma);
+	rtw_write16_set(rtwdev, REG_TXDMA_OFFSET_CHK, BIT_DROP_DATA_EN);
+}
+
 static int rtw8822b_mac_init(struct rtw_dev *rtwdev)
 {
 	u32 value32;
@@ -282,6 +302,9 @@ static int rtw8822b_mac_init(struct rtw_dev *rtwdev)
 	rtw_write8(rtwdev, REG_WMAC_OPTION_FUNCTION + 4, WLAN_MAC_OPT_NORM_FUNC1);
 	rtw_write8_set(rtwdev, REG_SND_PTCL_CTRL,
 		       BIT_DIS_CHK_VHTSIGB_CRC);
+
+	if (rtw_hci_type(rtwdev) == RTW_HCI_TYPE_USB)
+		rtw8822bu_init_burst_pkt_len(rtwdev);
 
 	return 0;
 }
@@ -1615,6 +1638,28 @@ static void rtw8822b_fill_txdesc_checksum(struct rtw_dev *rtwdev,
 	fill_txdesc_checksum_common(txdesc, words);
 }
 
+static void rtw8822b_rx_aggregation(struct rtw_dev *rtwdev, bool enable)
+{
+	u8 size, timeout;
+	u16 val16;
+
+	rtw_write32_set(rtwdev, REG_RXDMA_AGG_PG_TH, BIT_EN_PRE_CALC);
+	rtw_write8_set(rtwdev, REG_TXDMA_PQ_MAP, BIT_RXDMA_AGG_EN);
+	rtw_write8_clr(rtwdev, REG_RXDMA_AGG_PG_TH + 3, BIT(7));
+
+	if (enable) {
+		size = 0x5;
+		timeout = 0x20;
+	} else {
+		size = 0x0;
+		timeout = 0x1;
+	}
+	val16 = u16_encode_bits(size, BIT_RXDMA_AGG_PG_TH) |
+		u16_encode_bits(timeout, BIT_DMA_AGG_TO_V1);
+
+	rtw_write16(rtwdev, REG_RXDMA_AGG_PG_TH, val16);
+}
+
 static const struct rtw_pwr_seq_cmd trans_carddis_to_cardemu_8822b[] = {
 	{0x0086,
 	 RTW_PWR_CUT_ALL_MSK,
@@ -2112,12 +2157,6 @@ static const struct rtw_intf_phy_para_table phy_para_table_8822b = {
 	.n_gen2_para	= ARRAY_SIZE(pcie_gen2_param_8822b),
 };
 
-static const struct rtw_rfe_def rtw8822b_rfe_defs[] = {
-	[2] = RTW_DEF_RFE(8822b, 2, 2),
-	[3] = RTW_DEF_RFE(8822b, 3, 0),
-	[5] = RTW_DEF_RFE(8822b, 5, 5),
-};
-
 static const struct rtw_hw_reg rtw8822b_dig[] = {
 	[0] = { .addr = 0xc50, .mask = 0x7f },
 	[1] = { .addr = 0xe50, .mask = 0x7f },
@@ -2193,6 +2232,7 @@ static struct rtw_chip_ops rtw8822b_ops = {
 	.adaptivity_init	= rtw8822b_adaptivity_init,
 	.adaptivity		= rtw8822b_adaptivity,
 	.fill_txdesc_checksum	= rtw8822b_fill_txdesc_checksum,
+	.rx_aggregation		= rtw8822b_rx_aggregation,
 
 	.coex_set_init		= rtw8822b_coex_cfg_init,
 	.coex_set_ant_switch	= rtw8822b_coex_cfg_ant_switch,
@@ -2472,7 +2512,7 @@ static const u8 rtw8822b_pwrtrk_2g_cck_a_p[RTW_PWR_TRK_TBL_SZ] = {
 	10, 11, 11, 12, 12, 13, 13, 14, 14, 15
 };
 
-static const struct rtw_pwr_track_tbl rtw8822b_rtw_pwr_track_tbl = {
+static const struct rtw_pwr_track_tbl rtw8822b_pwr_track_type0_tbl = {
 	.pwrtrk_5gb_n[RTW_PWR_TRK_5G_1] = rtw8822b_pwrtrk_5gb_n[RTW_PWR_TRK_5G_1],
 	.pwrtrk_5gb_n[RTW_PWR_TRK_5G_2] = rtw8822b_pwrtrk_5gb_n[RTW_PWR_TRK_5G_2],
 	.pwrtrk_5gb_n[RTW_PWR_TRK_5G_3] = rtw8822b_pwrtrk_5gb_n[RTW_PWR_TRK_5G_3],
@@ -2493,6 +2533,12 @@ static const struct rtw_pwr_track_tbl rtw8822b_rtw_pwr_track_tbl = {
 	.pwrtrk_2g_cckb_p = rtw8822b_pwrtrk_2g_cck_b_p,
 	.pwrtrk_2g_ccka_n = rtw8822b_pwrtrk_2g_cck_a_n,
 	.pwrtrk_2g_ccka_p = rtw8822b_pwrtrk_2g_cck_a_p,
+};
+
+static const struct rtw_rfe_def rtw8822b_rfe_defs[] = {
+	[2] = RTW_DEF_RFE(8822b, 2, 2, 0),
+	[3] = RTW_DEF_RFE(8822b, 3, 0, 0),
+	[5] = RTW_DEF_RFE(8822b, 5, 5, 0),
 };
 
 static const struct rtw_reg_domain coex_info_hw_regs_8822b[] = {
@@ -2550,6 +2596,9 @@ const struct rtw_chip_info rtw8822b_hw_spec = {
 	.band = RTW_BAND_2G | RTW_BAND_5G,
 	.page_size = TX_PAGE_SIZE,
 	.dig_min = 0x1c,
+	.usb_tx_agg_desc_num = 3,
+	.hw_feature_report = true,
+	.c2h_ra_report_size = 7,
 	.ht_supported = true,
 	.vht_supported = true,
 	.lps_deep_mode_supported = BIT(LPS_DEEP_MODE_LCLK),
@@ -2571,13 +2620,10 @@ const struct rtw_chip_info rtw8822b_hw_spec = {
 	.rf_tbl = {&rtw8822b_rf_a_tbl, &rtw8822b_rf_b_tbl},
 	.rfe_defs = rtw8822b_rfe_defs,
 	.rfe_defs_size = ARRAY_SIZE(rtw8822b_rfe_defs),
-	.pwr_track_tbl = &rtw8822b_rtw_pwr_track_tbl,
 	.iqk_threshold = 8,
 	.bfer_su_max_num = 2,
 	.bfer_mu_max_num = 1,
 	.rx_ldpc = true,
-	.has_hw_feature_report = true,
-	.usb_tx_agg_desc_num = 3,
 	.edcca_th = rtw8822b_edcca_th,
 	.l2h_th_ini_cs = 10 + EDCCA_IGI_BASE,
 	.l2h_th_ini_ad = -14 + EDCCA_IGI_BASE,

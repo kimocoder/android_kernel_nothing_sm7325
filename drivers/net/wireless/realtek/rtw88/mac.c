@@ -315,11 +315,6 @@ static int rtw_mac_power_switch(struct rtw_dev *rtwdev, bool pwr_on)
 		    chip->id == RTW_CHIP_TYPE_8822B ||
 		    chip->id == RTW_CHIP_TYPE_8821C)
 			rtw_write8_clr(rtwdev, REG_SYS_STATUS1 + 1, BIT(0));
-
-		if (chip->id == RTW_CHIP_TYPE_8821A) {
-			if (rtw_read8(rtwdev, REG_SYS_CFG1 + 3) & BIT(0))
-				rtw_write8_set(rtwdev, REG_LDO_SWR_CTRL, BIT(6));
-		}
 	}
 
 	if (rtw_hci_type(rtwdev) == RTW_HCI_TYPE_SDIO)
@@ -955,18 +950,6 @@ static int __rtw_download_firmware_legacy(struct rtw_dev *rtwdev,
 		rtw_write8(rtwdev, REG_MCUFW_CTRL, 0x00);
 	}
 
-	/* reset firmware if still present */
-	if (rtwdev->chip->id == RTW_CHIP_TYPE_8703B &&
-	    rtw_read8_mask(rtwdev, REG_MCUFW_CTRL, BIT_RAM_DL_SEL)) {
-		rtw_write8(rtwdev, REG_MCUFW_CTRL, 0x00);
-	}
-
-	/* reset firmware if still present */
-	if (rtwdev->chip->id == RTW_CHIP_TYPE_8703B &&
-	    rtw_read8_mask(rtwdev, REG_MCUFW_CTRL, BIT_RAM_DL_SEL)) {
-		rtw_write8(rtwdev, REG_MCUFW_CTRL, 0x00);
-	}
-
 	en_download_firmware_legacy(rtwdev, true);
 	ret = download_firmware_legacy(rtwdev, fw->firmware->data, fw->firmware->size);
 	en_download_firmware_legacy(rtwdev, false);
@@ -1146,7 +1129,7 @@ static int txdma_queue_mapping(struct rtw_dev *rtwdev)
 	return 0;
 }
 
-int set_trx_fifo_info(struct rtw_dev *rtwdev)
+int rtw_set_trx_fifo_info(struct rtw_dev *rtwdev)
 {
 	const struct rtw_chip_info *chip = rtwdev->chip;
 	struct rtw_fifo_conf *fifo = &rtwdev->fifo;
@@ -1155,7 +1138,7 @@ int set_trx_fifo_info(struct rtw_dev *rtwdev)
 
 	/* config rsvd page num */
 	fifo->rsvd_drv_pg_num = chip->rsvd_drv_pg_num;
-	fifo->txff_pg_num = chip->txff_size >> 7;
+	fifo->txff_pg_num = chip->txff_size / chip->page_size;
 	if (rtw_chip_wcpu_11n(rtwdev))
 		fifo->rsvd_pg_num = fifo->rsvd_drv_pg_num;
 	else
@@ -1198,7 +1181,7 @@ int set_trx_fifo_info(struct rtw_dev *rtwdev)
 
 	return 0;
 }
-EXPORT_SYMBOL(set_trx_fifo_info);
+EXPORT_SYMBOL(rtw_set_trx_fifo_info);
 
 static int __priority_queue_cfg(struct rtw_dev *rtwdev,
 				const struct rtw_page_table *pg_tbl,
@@ -1206,7 +1189,6 @@ static int __priority_queue_cfg(struct rtw_dev *rtwdev,
 {
 	const struct rtw_chip_info *chip = rtwdev->chip;
 	struct rtw_fifo_conf *fifo = &rtwdev->fifo;
-	u8 val8;
 
 	rtw_write16(rtwdev, REG_FIFOPAGE_INFO_1, pg_tbl->hq_num);
 	rtw_write16(rtwdev, REG_FIFOPAGE_INFO_2, pg_tbl->lq_num);
@@ -1224,10 +1206,8 @@ static int __priority_queue_cfg(struct rtw_dev *rtwdev,
 	rtw_write32(rtwdev, REG_RXFF_BNDY, chip->rxff_size - C2H_PKT_BUF - 1);
 
 	if (rtwdev->hci.type == RTW_HCI_TYPE_USB) {
-		val8 = rtw_read8(rtwdev, REG_AUTO_LLT_V1);
-		u8p_replace_bits(&val8, chip->usb_tx_agg_desc_num,
-				 BIT_MASK_BLK_DESC_NUM);
-		rtw_write8(rtwdev, REG_AUTO_LLT_V1, val8);
+		rtw_write8_mask(rtwdev, REG_AUTO_LLT_V1, BIT_MASK_BLK_DESC_NUM,
+				chip->usb_tx_agg_desc_num);
 
 		rtw_write8(rtwdev, REG_AUTO_LLT_V1 + 3, chip->usb_tx_agg_desc_num);
 		rtw_write8_set(rtwdev, REG_TXDMA_OFFSET_CHK + 1, BIT(1));
@@ -1242,68 +1222,6 @@ static int __priority_queue_cfg(struct rtw_dev *rtwdev,
 
 	return 0;
 }
-
-int rtw_llt_init_legacy(struct rtw_dev *rtwdev, u32 boundary)
-{
-	rtw_write32_set(rtwdev, REG_AUTO_LLT, BIT_AUTO_INIT_LLT);
-
-	if (!check_hw_ready(rtwdev, REG_AUTO_LLT, BIT_AUTO_INIT_LLT, 0))
-		return -EBUSY;
-
-	return 0;
-}
-EXPORT_SYMBOL(rtw_llt_init_legacy);
-
-static int llt_write(struct rtw_dev *rtwdev, u32 address, u32 data)
-{
-	u32 value = BIT_LLT_WRITE_ACCESS | (address << 8) | data;
-	int status = 0;
-	int count = 0;
-
-	rtw_write32(rtwdev, REG_LLT_INIT, value);
-
-	do {
-		if (!rtw_read32_mask(rtwdev, REG_LLT_INIT, BIT(31) | BIT(30)))
-			break;
-
-		if (count > 20) {
-			pr_err("Failed to poll write LLT done at address %d!\n",
-			       address);
-			status = -EBUSY;
-			break;
-		}
-	} while (++count);
-
-	return status;
-}
-
-int rtw_llt_init_legacy_old(struct rtw_dev *rtwdev, u32 boundary)
-{
-	u32 last_entry = 255;
-	int status = 0;
-	u32 i;
-
-	for (i = 0; i < boundary - 1; i++) {
-		status = llt_write(rtwdev, i, i + 1);
-		if (status)
-			return status;
-	}
-
-	status = llt_write(rtwdev, boundary - 1, 0xFF);
-	if (status)
-		return status;
-
-	for (i = boundary; i < last_entry; i++) {
-		status = llt_write(rtwdev, i, i + 1);
-		if (status)
-			return status;
-	}
-
-	status = llt_write(rtwdev, last_entry, boundary);
-
-	return status;
-}
-EXPORT_SYMBOL(rtw_llt_init_legacy_old);
 
 static int __priority_queue_cfg_legacy(struct rtw_dev *rtwdev,
 				       const struct rtw_page_table *pg_tbl,
@@ -1325,7 +1243,12 @@ static int __priority_queue_cfg_legacy(struct rtw_dev *rtwdev,
 	rtw_write8(rtwdev, REG_MGQ_BDNY, fifo->rsvd_boundary);
 	rtw_write8(rtwdev, REG_WMAC_LBK_BF_HD, fifo->rsvd_boundary);
 
-	return chip->ops->llt_init_legacy(rtwdev, fifo->rsvd_boundary);
+	rtw_write32_set(rtwdev, REG_AUTO_LLT, BIT_AUTO_INIT_LLT);
+
+	if (!check_hw_ready(rtwdev, REG_AUTO_LLT, BIT_AUTO_INIT_LLT, 0))
+		return -EBUSY;
+
+	return 0;
 }
 
 static int priority_queue_cfg(struct rtw_dev *rtwdev)
@@ -1336,7 +1259,7 @@ static int priority_queue_cfg(struct rtw_dev *rtwdev)
 	u16 pubq_num;
 	int ret;
 
-	ret = set_trx_fifo_info(rtwdev);
+	ret = rtw_set_trx_fifo_info(rtwdev);
 	if (ret)
 		return ret;
 

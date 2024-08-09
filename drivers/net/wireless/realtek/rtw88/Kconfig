@@ -25,12 +25,6 @@ config RTW88_USB
 config RTW88_8822B
 	tristate
 
-config RTW88_8812A
-	tristate
-
-config RTW88_8821A
-	tristate
-
 config RTW88_8822C
 	tristate
 
@@ -69,28 +63,6 @@ config RTW88_8822BS
 	  Select this option will enable support for 8822BS chipset
 
 	  802.11ac SDIO wireless network adapter
-
-config RTW88_8812AU
-	tristate "Realtek 8812AU USB wireless network adapter"
-	depends on USB
-	select RTW88_CORE
-	select RTW88_USB
-	select RTW88_8821A
-	help
-	  Select this option will enable support for 8812AU chipset
-
-	  802.11ac USB wireless network adapter
-
-config RTW88_8821AU
-	tristate "Realtek 8821AU USB wireless network adapter"
-	depends on USB
-	select RTW88_CORE
-	select RTW88_USB
-	select RTW88_8821A
-	help
-	  Select this option will enable support for 8821AU chipset
-
-	  802.11ac USB wireless network adapter
 
 config RTW88_8822BU
 	tristate "Realtek 8822BU USB wireless network adapter"
@@ -233,4 +205,3 @@ config RTW88_DEBUGFS
 	  If unsure, say Y to simplify debug problems
 
 endif
-

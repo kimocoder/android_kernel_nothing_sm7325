@@ -1319,13 +1319,13 @@ static void rtw_fill_rsvd_page_desc(struct rtw_dev *rtwdev, struct sk_buff *skb,
 	rtw_tx_fill_tx_desc(rtwdev, &pkt_info, skb);
 }
 
-static inline u8 rtw_len_to_page(unsigned int len, u8 page_size)
+static inline u8 rtw_len_to_page(unsigned int len, u16 page_size)
 {
 	return DIV_ROUND_UP(len, page_size);
 }
 
-static void rtw_rsvd_page_list_to_buf(struct rtw_dev *rtwdev, u8 page_size,
-				      u8 page_margin, u32 page, u8 *buf,
+static void rtw_rsvd_page_list_to_buf(struct rtw_dev *rtwdev, u16 page_size,
+				      u16 page_margin, u32 page, u8 *buf,
 				      struct rtw_rsvd_page *rsvd_pkt)
 {
 	struct sk_buff *skb = rsvd_pkt->skb;
@@ -1503,10 +1503,12 @@ int rtw_fw_write_data_rsvd_page(struct rtw_dev *rtwdev, u16 pg_addr,
 	val |= BIT_ENSWBCN >> 8;
 	rtw_write8(rtwdev, REG_CR + 1, val);
 
-	val = rtw_read8(rtwdev, REG_FWHW_TXQ_CTRL + 2);
-	bckp[1] = val;
-	val &= ~(BIT_EN_BCNQ_DL >> 16);
-	rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, val);
+	if (rtw_hci_type(rtwdev) != RTW_HCI_TYPE_USB) {
+		val = rtw_read8(rtwdev, REG_FWHW_TXQ_CTRL + 2);
+		bckp[1] = val;
+		val &= ~(BIT_EN_BCNQ_DL >> 16);
+		rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, val);
+	}
 
 	ret = rtw_hci_write_data_rsvd_page(rtwdev, buf, size);
 	if (ret) {
@@ -1535,7 +1537,8 @@ restore:
 		rtw_write16(rtwdev, REG_FIFOPAGE_CTRL_2,
 			    rsvd_pg_head | BIT_BCN_VALID_V1);
 	}
-	rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, bckp[1]);
+	if (rtw_hci_type(rtwdev) != RTW_HCI_TYPE_USB)
+		rtw_write8(rtwdev, REG_FWHW_TXQ_CTRL + 2, bckp[1]);
 	rtw_write8(rtwdev, REG_CR + 1, bckp[0]);
 
 	return ret;
@@ -1634,7 +1637,7 @@ static u8 *rtw_build_rsvd_page(struct rtw_dev *rtwdev, u32 *size)
 	struct rtw_rsvd_page *rsvd_pkt;
 	u32 page = 0;
 	u8 total_page = 0;
-	u8 page_size, page_margin, tx_desc_sz;
+	u16 page_size, page_margin, tx_desc_sz;
 	u8 *buf;
 	int ret;
 
@@ -2040,7 +2043,8 @@ static int _rtw_hw_scan_update_probe_req(struct rtw_dev *rtwdev, u8 num_probes,
 {
 	const struct rtw_chip_info *chip = rtwdev->chip;
 	struct sk_buff *skb, *tmp;
-	u8 page_offset = 1, *buf, page_size = chip->page_size;
+	u8 page_offset = 1, *buf;
+	u16 page_size = chip->page_size;
 	u16 pg_addr = rtwdev->fifo.rsvd_h2c_info_addr, loc;
 	u16 buf_offset = page_size * page_offset;
 	u8 tx_desc_sz = chip->tx_pkt_desc_sz;

@@ -216,8 +216,10 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	struct rtw_dev *rtwdev = container_of(work, struct rtw_dev,
 					      watch_dog_work.work);
 	struct rtw_traffic_stats *stats = &rtwdev->stats;
+	const struct rtw_chip_info *chip = rtwdev->chip;
 	struct rtw_watch_dog_iter_data data = {};
 	bool busy_traffic = test_bit(RTW_FLAG_BUSY_TRAFFIC, rtwdev->flags);
+	u32 tx_unicast_shift, rx_unicast_shift;
 	bool ps_active;
 
 	mutex_lock(&rtwdev->mutex);
@@ -233,9 +235,6 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	else
 		clear_bit(RTW_FLAG_BUSY_TRAFFIC, rtwdev->flags);
 
-	rtw_coex_wl_status_check(rtwdev);
-	rtw_coex_query_bt_hid_list(rtwdev);
-
 	if (busy_traffic != test_bit(RTW_FLAG_BUSY_TRAFFIC, rtwdev->flags))
 		rtw_coex_wl_status_change_notify(rtwdev, 0);
 
@@ -245,12 +244,20 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	else
 		ps_active = false;
 
-	ewma_tp_add(&stats->tx_ewma_tp,
-		    (u32)(stats->tx_unicast >> RTW_TP_SHIFT));
-	ewma_tp_add(&stats->rx_ewma_tp,
-		    (u32)(stats->rx_unicast >> RTW_TP_SHIFT));
+	tx_unicast_shift = stats->tx_unicast >> RTW_TP_SHIFT;
+	rx_unicast_shift = stats->rx_unicast >> RTW_TP_SHIFT;
+
+	ewma_tp_add(&stats->tx_ewma_tp, tx_unicast_shift);
+	ewma_tp_add(&stats->rx_ewma_tp, rx_unicast_shift);
 	stats->tx_throughput = ewma_tp_read(&stats->tx_ewma_tp);
 	stats->rx_throughput = ewma_tp_read(&stats->rx_ewma_tp);
+
+	if (rtw_hci_type(rtwdev) == RTW_HCI_TYPE_USB && chip->ops->rx_aggregation) {
+		if (tx_unicast_shift < 1 && rx_unicast_shift < 1)
+			chip->ops->rx_aggregation(rtwdev, false);
+		else
+			chip->ops->rx_aggregation(rtwdev, true);
+	}
 
 	/* reset tx/rx statictics */
 	stats->tx_unicast = 0;
@@ -261,8 +268,15 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	if (test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
 		goto unlock;
 
+	int received_beacons = rtwdev->dm_info.cur_pkt_count.num_bcn_pkt;
+
 	/* make sure BB/RF is working for dynamic mech */
 	rtw_leave_lps(rtwdev);
+	rtw_coex_wl_status_check(rtwdev);
+	rtw_coex_query_bt_hid_list(rtwdev);
+
+	if (rtwdev->chip->id == RTW_CHIP_TYPE_8821A && rtwdev->efuse.btcoex)
+		rtw_coex_query_bt_info(rtwdev);
 
 	rtw_phy_dynamic_mechanism(rtwdev);
 
@@ -271,6 +285,15 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	 * to avoid taking local->iflist_mtx mutex
 	 */
 	rtw_iterate_vifs(rtwdev, rtw_vif_watch_dog_iter, &data);
+
+	if (!rtw_fw_feature_check(&rtwdev->fw, FW_FEATURE_BCN_FILTER) &&
+	    data.rtwvif) {
+		int beacon_int = rtwvif_to_vif(data.rtwvif)->bss_conf.beacon_int;
+		int watchdog_delay = 2000000 / 1024; /* TU */
+		int expected_beacons = DIV_ROUND_UP(watchdog_delay, beacon_int);
+
+		rtwdev->beacon_loss = received_beacons < expected_beacons / 2;
+	}
 
 	/* fw supports only one station associated to enter lps, if there are
 	 * more than two stations associated to the AP, then we can not enter
@@ -281,8 +304,6 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	 * get that vif and check if device is having traffic more than the
 	 * threshold.
 	 */
-	if (rtwdev->chip->id == RTW_CHIP_TYPE_8821A || rtwdev->chip->id == RTW_CHIP_TYPE_8812A)
-		rtwdev->ps_enabled = false;///TODO: 8821au disconnects with "Reason: 7=CLASS3_FRAME_FROM_NONASSOC_STA"
 	if (rtwdev->ps_enabled && data.rtwvif && !ps_active &&
 	    !rtwdev->beacon_loss && !rtwdev->ap_active)
 		rtw_enter_lps(rtwdev, data.rtwvif->port);
@@ -1990,11 +2011,6 @@ static int rtw_chip_efuse_enable(struct rtw_dev *rtwdev)
 	struct rtw_fw_state *fw = &rtwdev->fw;
 	int ret;
 
-	/* TODO: put this in the chip ops. They don't need powering on before reading the efuse. */
-	if (rtwdev->chip->id == RTW_CHIP_TYPE_8821A ||
-	    rtwdev->chip->id == RTW_CHIP_TYPE_8812A)
-		return 0;
-
 	ret = rtw_hci_setup(rtwdev);
 	if (ret) {
 		rtw_err(rtwdev, "failed to setup hci\n");
@@ -2039,7 +2055,7 @@ static int rtw_dump_hw_feature(struct rtw_dev *rtwdev)
 	u8 bw;
 	int i;
 
-	if (!rtwdev->chip->has_hw_feature_report)
+	if (!rtwdev->chip->hw_feature_report)
 		goto print_hw_cap;
 
 	id = rtw_read8(rtwdev, REG_C2HEVT);
@@ -2133,6 +2149,11 @@ static int rtw_chip_efuse_info_setup(struct rtw_dev *rtwdev)
 	efuse->ext_lna_2g = efuse->lna_type_2g & BIT(3) ? 1 : 0;
 	efuse->ext_pa_5g = efuse->pa_type_5g & BIT(0) ? 1 : 0;
 	efuse->ext_lna_5g = efuse->lna_type_5g & BIT(3) ? 1 : 0;
+
+	if (!is_valid_ether_addr(efuse->addr)) {
+		eth_random_addr(efuse->addr);
+		dev_warn(rtwdev->dev, "efuse MAC invalid, using random\n");
+	}
 
 out_disable:
 	rtw_chip_efuse_disable(rtwdev);

@@ -64,7 +64,11 @@ static int rtw_ops_start(struct ieee80211_hw *hw)
 	return ret;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0))
 static void rtw_ops_stop(struct ieee80211_hw *hw)
+#else
+static void rtw_ops_stop(struct ieee80211_hw *hw, bool suspend)
+#endif
 {
 	struct rtw_dev *rtwdev = hw->priv;
 
@@ -389,11 +393,8 @@ static void rtw_ops_bss_info_changed(struct ieee80211_hw *hw,
 		if (conf->assoc) {
 #endif
 			rtw_coex_connect_notify(rtwdev, COEX_ASSOCIATE_FINISH);
-
-			if (rtwdev->chip->id != RTW_CHIP_TYPE_8812A) {
-				rtw_fw_download_rsvd_page(rtwdev);///TODO: this appears to kill the firmware
-				rtw_send_rsvd_page_h2c(rtwdev);
-			}
+			rtw_fw_download_rsvd_page(rtwdev);
+			rtw_send_rsvd_page_h2c(rtwdev);
 			rtw_fw_default_port(rtwdev, rtwvif);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0))
 			rtw_coex_media_status_notify(rtwdev, vif->cfg.assoc);
@@ -476,6 +477,7 @@ static int rtw_ops_start_ap(struct ieee80211_hw *hw, struct ieee80211_vif *vif)
 	const struct rtw_chip_info *chip = rtwdev->chip;
 
 	mutex_lock(&rtwdev->mutex);
+	set_bit(0, rtwdev->mac_id_map);
 	rtw_write32_set(rtwdev, REG_TCR, BIT_TCR_UPDATE_HGQMD);
 	rtwdev->ap_active = true;
 	rtw_store_op_chan(rtwdev, true);
@@ -501,6 +503,7 @@ static void rtw_ops_stop_ap(struct ieee80211_hw *hw,
 	rtwdev->ap_active = false;
 	if (!rtw_core_check_sta_active(rtwdev))
 		rtw_clear_op_chan(rtwdev);
+	clear_bit(0, rtwdev->mac_id_map);
 	mutex_unlock(&rtwdev->mutex);
 }
 

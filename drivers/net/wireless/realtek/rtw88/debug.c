@@ -252,7 +252,7 @@ static int rtw_debugfs_get_rsvd_page(struct seq_file *m, void *v)
 {
 	struct rtw_debugfs_priv *debugfs_priv = m->private;
 	struct rtw_dev *rtwdev = debugfs_priv->rtwdev;
-	u8 page_size = rtwdev->chip->page_size;
+	u16 page_size = rtwdev->chip->page_size;
 	u32 buf_size = debugfs_priv->rsvd_page.page_num * page_size;
 	u32 offset = debugfs_priv->rsvd_page.page_offset * page_size;
 	u8 *buf;
@@ -293,7 +293,7 @@ static ssize_t rtw_debugfs_set_rsvd_page(struct file *filp,
 	int num;
 	int ret;
 
-	ret = rtw_debugfs_copy_from_user(tmp, sizeof(tmp), buffer, count, 1);
+	ret = rtw_debugfs_copy_from_user(tmp, sizeof(tmp), buffer, count, 2);
 	if (ret)
 		return ret;
 

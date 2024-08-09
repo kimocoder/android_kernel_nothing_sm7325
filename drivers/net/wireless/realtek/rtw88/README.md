@@ -1,5 +1,5 @@
-# rtw88 📡🐧
-### A Repo for the Latest Realtek WiFi 5 Codes on Linux
+# rtw88 downstream 🐧
+### This is a downstream repo for the Linux in-kernel rtw88 series of drivers for Realtek WiFi 5 chips.
 
 🌟 **Up-to-Date Drivers**: The code in this repo stays in sync with the `wireless-next` repository, with additional changes to accommodate kernel API changes over time. The current repo matches the kernel as of March 5, 2024.
 
@@ -8,13 +8,12 @@
 ---
 
 ### Compatibility
-Compatible with **Linux kernel versions 5.4 and newer** as long as your distro hasn't modified any kernel APIs.
 
-⚠️ **Ubuntu users, expect API changes!** We **will not** modify the source for you. You are on your own!
+Compatible with **Linux kernel versions 5.4 and newer** as long as your distro hasn't modified any kernel APIs. RHEL and all distros based on RHEL will have modified kernel APIs and are unlikely to be compatible with this driver.
 
-#### Supported Cards
+#### Supported Chipsets
+- **USB** : RTW8812AU, RTW8821AU, RTW8811AU, RTW8822BU, RTW8812BU, RTW8822CU, RTW8821CU, RTW8811CU, RTW8723DU
 - **PCIe**: RTW8822BE, RTW8822CE, RTW8821CE, RTW8723DE
-- **USB**: RTW8822BU, RTW8822CU, RTW8821CU, RTW8723DU
 - **SDIO**: RTW8822BS, RTW8822CS, RTW8821CS, RTW8723DS
 
 **Are you looking for support for these drivers?** 🔎 ⚠️
@@ -56,13 +55,17 @@ Below are prerequisites for common Linux distributions __before__ you do a [basi
 
 #### Ubuntu
 ```bash
-sudo apt-get update
-sudo apt-get install make gcc linux-headers-$(uname -r) build-essential git
+sudo apt update && sudo apt upgrade
+```
+```bash
+sudo apt install make gcc linux-headers-$(uname -r) build-essential git
 ```
 
 #### Fedora
 ```bash
 sudo dnf install kernel-headers kernel-devel
+```
+```bash
 sudo dnf group install "C Development Tools and Libraries"
 ```
 
@@ -74,25 +77,50 @@ sudo zypper install make gcc kernel-devel kernel-default-devel git libopenssl-de
 #### Arch
 ```bash
 git clone https://aur.archlinux.org/rtw88-dkms-git.git
+```
+```bash
 cd rtw88-dkms-git
+```
+```bash
 makepkg -sri
 ```
+
+#### Raspberry Pi OS
+```bash
+sudo apt update && sudo apt upgrade
+```
+```bash
+sudo apt install -y raspberrypi-kernel-headers build-essential bc git
+```
+
 ---
 ### Basic Installation for All Distros 🛠
 
 ```bash
-git clone https://github.com/lwfinger/rtw88.git
+git clone https://github.com/lwfinger/rtw88
+```
+```bash
 cd rtw88
+```
+```bash
 make
+```
+```bash
 sudo make install
 ```
 ---
 ### Installation with SecureBoot for All Distros 🔒
 
 ```bash
-git clone git://github.com/lwfinger/rtw88.git
+git clone https://github.com/lwfinger/rtw88
+```
+```bash
 cd rtw88
+```
+```bash
 make
+```
+```bash
 sudo make sign-install
 ```
 You will be prompted a password, **please keep it in mind and use it in next steps.**
@@ -166,11 +194,17 @@ The available options for rtw_core are disable_lps_deep, support_bf,  and debug_
 When your kernel updates, run:
 ```bash
 cd ~/rtw88
+```
+```
 git pull
+```
+```
 make
+```
+```
 sudo make install
 ```
-💡 **Remember, every new kernel requires this step - no exceptions**. If the update means that you have no network, skip the 'git pull' and build the possible oldeer version, but do that step once you have network, and rebuild if any updates were pulled.
+💡 **Remember, every new kernel requires this step - no exceptions**. If the kernel update means that you have no network, skip the 'git pull' and build the driver as it is, but run `git pull` once you have connectivity, and rebuild if any updates were pulled.
 
 ## FAQ
 
@@ -207,3 +241,13 @@ Yes, this repository provides a way to sign the kernel modules to be compatible 
 
 ### Q5: My card isn't listed. Can I request a feature?
 For feature requests like supporting a new card, you should reach out to Realtek engineers via E-mail at [linux-wireless@vger.kernel.org](mailto:linux-wireless@vger.kernel.org).
+
+---
+
+### Q6: How to remove this driver if it doesn't work as expected?
+Run this command in the rtw88 source directory and then the rtw88 driver will be unloaded and removed.
+
+`sudo make -s uninstall`
+
+---
+

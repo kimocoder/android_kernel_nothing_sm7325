@@ -532,6 +532,13 @@ static void rtw_phy_dig(struct rtw_dev *rtwdev)
 	 */
 	rtw_phy_dig_recorder(dm_info, cur_igi, fa_cnt);
 
+	/* Mitigate beacon loss and connectivity issues, mainly (only?)
+	 * in the 5 GHz band
+	 */
+	if (rtwdev->chip->id == RTW_CHIP_TYPE_8812A && rtwdev->beacon_loss &&
+	    linked && dm_info->total_fa_cnt < DIG_PERF_FA_TH_EXTRA_HIGH)
+		cur_igi = DIG_CVRG_MIN;
+
 	if (cur_igi != pre_igi)
 		rtw_phy_dig_write(rtwdev, cur_igi);
 }
@@ -1106,20 +1113,26 @@ static bool check_positive(struct rtw_dev *rtwdev, struct rtw_phy_cond cond, str
 	if (cond.intf && cond.intf != drv_cond.intf)
 		return false;
 
-	if (cond.rfe != drv_cond.rfe)
-		return false;
+	if (rtwdev->chip->id == RTW_CHIP_TYPE_8812A ||
+	    rtwdev->chip->id == RTW_CHIP_TYPE_8821A) {
+		if (cond.rfe & 0x0f) {
+			if ((cond.rfe & drv_cond.rfe) != cond.rfe)
+				return false;
 
-	if (cond.rfe & 0x0f) {
-		if ((cond.rfe & BIT(0)) && cond2.type_glna != drv_cond2.type_glna)
-			return false;
+			if ((cond.rfe & BIT(0)) && cond2.type_glna != drv_cond2.type_glna)
+				return false;
 
-		if ((cond.rfe & BIT(1)) && cond2.type_gpa != drv_cond2.type_gpa)
-			return false;
+			if ((cond.rfe & BIT(1)) && cond2.type_gpa != drv_cond2.type_gpa)
+				return false;
 
-		if ((cond.rfe & BIT(2)) && cond2.type_alna != drv_cond2.type_alna)
-			return false;
+			if ((cond.rfe & BIT(2)) && cond2.type_alna != drv_cond2.type_alna)
+				return false;
 
-		if ((cond.rfe & BIT(3)) && cond2.type_apa != drv_cond2.type_apa)
+			if ((cond.rfe & BIT(3)) && cond2.type_apa != drv_cond2.type_apa)
+				return false;
+		}
+	} else {
+		if (cond.rfe != drv_cond.rfe)
 			return false;
 	}
 
@@ -2180,8 +2193,8 @@ void rtw_get_tx_power_params(struct rtw_dev *rtwdev, u8 path, u8 rate, u8 bw,
 
 	*limit = rtw_phy_get_tx_power_limit(rtwdev, band, bw, path,
 					    rate, ch, regd);
-	*remnant = (rate <= DESC_RATE11M ? dm_info->txagc_remnant_cck :
-		    dm_info->txagc_remnant_ofdm);
+	*remnant = rate <= DESC_RATE11M ? dm_info->txagc_remnant_cck :
+					  dm_info->txagc_remnant_ofdm[path];
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
 	*sar = rtw_phy_get_tx_power_sar(rtwdev, hal->sar_band, path, rate);
 #endif
@@ -2205,6 +2218,10 @@ rtw_phy_get_tx_power_index(struct rtw_dev *rtwdev, u8 rf_path, u8 rate,
 
 	if (rtwdev->chip->en_dis_dpd)
 		offset += rtw_phy_get_dis_dpd_by_rate_diff(rtwdev, rate);
+
+	/* USB may not have enough power. Allow only to decrease. */
+	if (rtw_hci_type(rtwdev) == RTW_HCI_TYPE_USB)
+		offset = min_t(s8, offset, 0);
 
 	tx_power += offset + pwr_param.pwr_remnant;
 
@@ -2397,7 +2414,8 @@ void rtw_phy_init_tx_power(struct rtw_dev *rtwdev)
 void rtw_phy_config_swing_table(struct rtw_dev *rtwdev,
 				struct rtw_swing_table *swing_table)
 {
-	const struct rtw_pwr_track_tbl *tbl = rtwdev->chip->pwr_track_tbl;
+	const struct rtw_rfe_def *rfe_def = rtw_get_rfe_def(rtwdev);
+	const struct rtw_pwr_track_tbl *tbl = rfe_def->pwr_track_tbl;
 	u8 channel = rtwdev->hal.current_channel;
 
 	if (IS_CH_2G_BAND(channel)) {
