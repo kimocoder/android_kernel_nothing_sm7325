@@ -145,3 +145,20 @@ x509.genkey
 
 # Clang's compilation database file
 /compile_commands.json
+
+# Backports
+/backports
+backport.sh
+*.tmp
+*.swp
+*.swo
+*.bak
+*.rej
+*.out
+*.obj
+build/
+out/
+*.log
+.config
+*.cocci
+*.diff
