@@ -434,7 +434,7 @@ int pld_wlan_enable(struct device *dev, struct pld_wlan_enable_cfg *config,
 						  QWLAN_VERSIONSTR);
 		break;
 	case PLD_BUS_TYPE_SDIO:
-		ret = pld_sdio_wlan_enable(dev, config, mode, QWLAN_VERSIONSTR);
+		//ret = pld_sdio_wlan_enable(dev, config, mode, QWLAN_VERSIONSTR);
 		break;
 	case PLD_BUS_TYPE_USB:
 		ifdev = pld_get_if_dev(dev);

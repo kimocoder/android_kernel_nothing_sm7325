@@ -1466,13 +1466,17 @@ void *cds_get_context(QDF_MODULE_ID module_id)
 	case QDF_MODULE_ID_BMI:
 	{
 		context = gp_cds_context->g_ol_context;
-		break;
+		//if (!context)
+		//	cds_debug("Module ID %d context is Null (via %s)", module_id, func);
+		return context;
 	}
 
 	case QDF_MODULE_ID_CFG:
 	{
 		context = gp_cds_context->cfg_ctx;
-		break;
+		//if (!context)
+		//	cds_debug("Module ID %d context is Null (via %s)", module_id, func);
+		return context;
 	}
 
 	case QDF_MODULE_ID_SOC:

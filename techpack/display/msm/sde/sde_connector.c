@@ -26,9 +26,9 @@
 
 #define BL_NODE_NAME_SIZE 32
 #define HDR10_PLUS_VSIF_TYPE_CODE      0x81
+#define MAX_BRIGHTNESS_LEVEL 255
 int finger_hbm_flag = 0;
 int hbm_mode_flag = 0;
-#define MAX_BRIGHTNESS_LEVEL 255
 
 /* Autorefresh will occur after FRAME_CNT frames. Large values are unlikely */
 #define AUTOREFRESH_MAX_FRAME_CNT 6
@@ -99,7 +99,7 @@ static inline struct sde_kms *_sde_connector_get_kms(struct drm_connector *conn)
 static int sde_backlight_device_update_status(struct backlight_device *bd)
 {
 	int brightness;
-	struct dsi_display *dsi_display = NULL;
+	struct dsi_display *dsi_display;
 	struct dp_panel *dp_panel;
 	struct sde_connector *c_conn = bl_get_data(bd);
 	int bl_lvl;
@@ -2849,7 +2849,7 @@ static int _sde_connector_install_properties(struct drm_device *dev,
 	int connector_type, void *display,
 	struct msm_display_info *display_info)
 {
-	struct dsi_display *dsi_display;
+	struct dsi_display *dsi_display = NULL;
 	int rc;
 	struct drm_connector *connector;
 	u64 panel_id = ~0x0;

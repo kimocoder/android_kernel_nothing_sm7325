@@ -792,11 +792,11 @@ CONFIG_QCA_WIFI_FTM := y
 ifeq ($(CONFIG_QCA_WIFI_FTM), y)
 
 ifeq ($(CONFIG_NL80211_TESTMODE), y)
-	QCA_WIFI_FTM_NL80211 :=y
+	QCA_WIFI_FTM_NL80211 := y
 else
 	QCA_WIFI_FTM_NL80211 :=n
 endif
-	CONFIG_LINUX_QCMBR :=y
+	CONFIG_LINUX_QCMBR := y
 
 else
 	QCA_WIFI_FTM_NL80211 :=n
@@ -929,7 +929,7 @@ CONFIG_FUNC_CALL_MAP := n
 CONFIG_WLAN_WBUFF := y
 
 #Flag to enable set and get disable channel list feature
-CONFIG_DISABLE_CHANNEL_LIST :=y
+CONFIG_DISABLE_CHANNEL_LIST := y
 
 #Flag to enable beacon receive feature
 CONFIG_WLAN_BCN_RECV_FEATURE := y

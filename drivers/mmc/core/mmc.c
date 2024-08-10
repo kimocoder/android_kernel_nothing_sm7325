@@ -2335,6 +2335,7 @@ static int _mmc_suspend(struct mmc_host *host, bool is_suspend)
 		if (!host->partial_init_broken)
 #endif
 			mmc_cache_card_ext_csd(host);
+
 	}
 	if (mmc_can_sleep(host->card))
 		err = mmc_sleepawake(host, true);
@@ -2443,7 +2444,6 @@ static int _mmc_resume(struct mmc_host *host)
 
 	if (mmc_can_sleep(host->card)) {
 		err = mmc_sleepawake(host, false);
-
 #if defined(CONFIG_SDC_QTI)
 		if (!err) {
 			if (host->partial_init_broken)

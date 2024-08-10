@@ -5829,6 +5829,8 @@ static int msm_vidc_check_mbpf_supported(struct msm_vidc_inst *inst)
 	mutex_unlock(&core->lock);
 
 	if (mbpf > core->resources.max_mbpf) {
+		s_vpr_e(inst->sid, "%s: Hardware overloaded, Required %u, Max %u \n",
+			__func__, mbpf, core->resources.max_mbpf);
 		msm_vidc_print_running_insts(inst->core);
 		return -ENOMEM;
 	}

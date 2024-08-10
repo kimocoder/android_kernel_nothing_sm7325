@@ -2010,7 +2010,7 @@ static void __maybe_unused *cnss_create_ramdump_device(struct cnss_plat_data *pl
 				     subsys_info->subsys_desc.dev);
 }
 
-static void __maybe_unused cnss_destroy_ramdump_device(struct cnss_plat_data *plat_priv,
+static void __maybe_unused void cnss_destroy_ramdump_device(struct cnss_plat_data *plat_priv,
 					void *ramdump_dev)
 {
 	destroy_ramdump_device(ramdump_dev);
@@ -2120,12 +2120,12 @@ void cnss_unregister_subsys(struct cnss_plat_data *plat_priv)
 }
 
 #if IS_ENABLED(CONFIG_QCOM_MEMORY_DUMP_V2)
-static void *cnss_create_ramdump_device(struct cnss_plat_data *plat_priv)
+static __maybe_unused void *cnss_create_ramdump_device(struct cnss_plat_data *plat_priv)
 {
 	return &plat_priv->plat_dev->dev;
 }
 
-static void cnss_destroy_ramdump_device(struct cnss_plat_data *plat_priv,
+static __maybe_unused void cnss_destroy_ramdump_device(struct cnss_plat_data *plat_priv,
 					void *ramdump_dev)
 {
 }
