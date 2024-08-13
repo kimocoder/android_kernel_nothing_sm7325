@@ -22,9 +22,6 @@
 #include "wfss_ce_reg_seq_hwioreg.h"
 #include "wcss_version.h"
 
-#define HWIO_HOST_SOC_CE_COMMON_WFSS_CE_COMMON_R0_CE_HOST_IE_0_ADDR 0x12345678
-#define HWIO_HOST_SOC_CE_COMMON_WFSS_CE_COMMON_R0_CE_HOST_IE_1_ADDR 0x87654321
-
 #define MISSING 0
 
 #define SOC_RESET_CONTROL_OFFSET MISSING
